@@ -12,23 +12,62 @@ print("Launching Fashion AI Strategy App")
 def update_skus(file):
     if file is None:
         return gr.Dropdown.update(choices=[], value=None)
-    df = load_csv(file.name)
-    skus = get_sku_list(df)
-    return gr.Dropdown.update(choices=skus, value=skus[0] if skus else None)
+    try:
+        print("[INFO] Loading CSV for SKU dropdown")
+        df = load_csv(file.name)
+        print(f"[INFO] Loaded dataframe shape: {df.shape}")
+        skus = get_sku_list(df)
+        print(f"[INFO] {len(skus)} SKUs found")
+        return gr.Dropdown.update(choices=skus, value=skus[0] if skus else None)
+    except Exception as e:
+        print(f"[ERROR] Failed to load CSV: {e}")
+        return gr.Dropdown.update(choices=[], value=None)
 
 
 def run_pipeline(file, sku, ad_spend, weather, weekday):
-    print("Running analysis pipeline")
-    df = load_csv(file.name)
+    print("[INFO] Starting analysis pipeline")
+    try:
+        print("[INFO] Loading CSV data")
+        df = load_csv(file.name)
+        print(f"[INFO] Raw data shape: {df.shape}")
+    except Exception as e:
+        print(f"[ERROR] Failed to read CSV: {e}")
+        return None, "[ERROR] Could not read CSV", None
+
+    print("[INFO] Filtering last 30 days data")
     df_filtered = filter_last_30_days(df, sku)
+    print(f"[INFO] Filtered data shape: {df_filtered.shape}")
+
+    print("[INFO] Cleaning demand data")
     df_clean = clean_demand(df_filtered)
+    print(f"[INFO] Cleaned data shape: {df_clean.shape}")
+
     plot_file = "demand_plot.png"
+    print("[INFO] Generating demand chart")
     plot_demand(df_clean, sku, plot_file)
+
+    print("[INFO] Starting GPT prompt generation...")
     prompt = build_prompt(sku, ad_spend, weather, weekday)
-    insight = call_gpt(prompt)
+    print(f"[INFO] Prompt preview: {prompt[:100]}")
+
+    try:
+        insight = call_gpt(prompt)
+        print("[SUCCESS] GPT response received")
+        print(f"[INFO] GPT output preview: {insight[:100]}")
+    except Exception as e:
+        print(f"[ERROR] GPT API call failed: {e}")
+        insight = "[ERROR] GPT call failed"
+
     report_file = "analysis_result.pdf"
-    create_report(plot_file, insight, report_file)
-    print("Pipeline complete")
+    print("[INFO] Saving PDF report")
+    try:
+        create_report(plot_file, insight, report_file)
+        print(f"[SUCCESS] PDF report saved to {report_file}")
+    except Exception as e:
+        print(f"[ERROR] Failed to save PDF report: {e}")
+        report_file = None
+
+    print("[SUCCESS] Pipeline complete")
     return plot_file, insight, report_file
 
 
